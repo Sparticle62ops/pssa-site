@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSSA: a plastic state-space architecture</title>
+<meta name="description" content="PSSA is a small language model that is not a transformer. Recurrent state-space core, an episodic memory bank, and weights that rewrite themselves while it runs. Written in Rust, no ML framework.">
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --text:#e6edf3;
+    --dim:#8b949e; --accent:#58a6ff; --accent2:#3fb950; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:16px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px}
+  header{border-bottom:1px solid var(--line);padding:20px 0}
+  header .wrap{display:flex;align-items:center;justify-content:space-between}
+  .brand{font-family:var(--mono);font-size:18px;color:var(--text)}
+  .brand b{color:var(--accent)}
+  nav a{margin-left:18px;font-size:14px;color:var(--dim)} nav a:hover{color:var(--text);text-decoration:none}
+  .hero{padding:72px 0 40px}
+  .kicker{font-family:var(--mono);font-size:13px;letter-spacing:.08em;color:var(--accent2);text-transform:uppercase}
+  h1{font-size:44px;line-height:1.15;margin:12px 0 16px;letter-spacing:-.02em}
+  .lede{font-size:19px;color:var(--dim);max-width:640px}
+  .cta{margin-top:28px;display:flex;gap:12px;flex-wrap:wrap}
+  .btn{display:inline-block;padding:10px 18px;border-radius:8px;font-size:15px;font-weight:600;border:1px solid var(--line)}
+  .btn.primary{background:var(--accent);color:#0d1117;border-color:var(--accent)}
+  .btn.primary:hover{text-decoration:none;opacity:.9}
+  .btn.ghost{color:var(--text);background:var(--panel)}
+  .btn.ghost:hover{text-decoration:none;border-color:var(--accent)}
+  section{padding:40px 0;border-top:1px solid var(--line)}
+  h2{font-size:26px;margin-bottom:14px;letter-spacing:-.01em}
+  p.mut{color:var(--dim);max-width:700px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+  .card .big{font-family:var(--mono);font-size:30px;color:var(--accent)}
+  .card .lbl{font-size:13px;color:var(--dim);margin-top:6px}
+  .diagram{margin-top:28px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .diagram svg{display:block;width:100%;height:auto}
+  .cap{font-size:13px;color:var(--dim);margin-top:10px;text-align:center}
+  ul.props{margin:20px 0 0 20px;max-width:700px}
+  ul.props li{margin-bottom:10px}
+  ul.props li b{color:var(--text)}
+  table{border-collapse:collapse;margin:24px auto;width:100%;max-width:560px;font-size:15px}
+  th,td{border:1px solid var(--line);padding:10px 14px;text-align:left}
+  th{background:var(--panel);font-weight:600}
+  td.num{font-family:var(--mono)}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent2);border-radius:8px;padding:16px 18px;margin-top:24px;font-size:14px;color:var(--dim);max-width:700px}
+  .note b{color:var(--text)}
+  footer{border-top:1px solid var(--line);padding:28px 0;font-size:14px;color:var(--dim)}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}h1{font-size:34px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand"><b>PSSA</b> / sparticle62ops</div>
+    <nav><a href="#how">how it works</a><a href="#results">results</a><a href="#limits">limits</a><a href="https://github.com/Sparticle62ops/pssa">github</a></nav>
+  </div>
+</header>
+
+<div class="hero wrap">
+  <div class="kicker">a plastic state-space architecture</div>
+  <h1>A small language model<br>that is not a transformer.</h1>
+  <p class="lede">PSSA reads text one token at a time through a recurrent state-space layer, keeps a bank of episodic memories it can look things up in, and rewrites part of its own weights while it runs. Written in Rust from scratch: no PyTorch, no TensorFlow, no ML framework underneath.</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/Sparticle62ops/pssa">View on GitHub</a>
+    <a class="btn ghost" href="https://huggingface.co/sparticle62/pssa">Weights on Hugging Face</a>
+  </div>
+</div>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it differs from a transformer</h2>
+    <p class="mut">A transformer scores every pair of tokens in the context, so its cost per step grows with the square of sequence length and the whole context is re-read at every step. PSSA carries one fixed-size state along the sequence in a single left-to-right pass, and looks things up in a memory bank instead of re-reading the context, so cost grows linearly with length.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 840 300" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace,Consolas,monospace" font-size="13">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e"/>
+          </marker>
+        </defs>
+        <!-- token stream -->
+        <text x="24" y="30" fill="#8b949e">tokens in</text>
+        <g fill="#161b22" stroke="#30363d">
+          <rect x="24" y="42" width="52" height="28" rx="6"/>
+          <rect x="88" y="42" width="52" height="28" rx="6"/>
+          <rect x="152" y="42" width="52" height="28" rx="6"/>
+          <rect x="216" y="42" width="52" height="28" rx="6"/>
+          <rect x="280" y="42" width="52" height="28" rx="6" stroke-dasharray="4 3"/>
+        </g>
+        <text x="34" y="60" fill="#e6edf3">t1</text><text x="98" y="60" fill="#e6edf3">t2</text>
+        <text x="162" y="60" fill="#e6edf3">t3</text><text x="230" y="60" fill="#e6edf3">t4</text><text x="294" y="60" fill="#8b949e">…</text>
+        <!-- PSSA block -->
+        <rect x="120" y="104" width="360" height="110" rx="10" fill="#161b22" stroke="#58a6ff"/>
+        <text x="136" y="128" fill="#58a6ff" font-weight="bold">PSSA block (per token)</text>
+        <g fill="#0d1117" stroke="#30363d">
+          <rect x="140" y="142" width="150" height="30" rx="6"/>
+          <rect x="310" y="142" width="150" height="30" rx="6"/>
+          <rect x="140" y="180" width="320" height="22" rx="6"/>
+        </g>
+        <text x="150" y="160" fill="#e6edf3" font-size="12">state-space layer</text>
+        <text x="320" y="160" fill="#e6edf3" font-size="12">memory read</text>
+        <text x="152" y="196" fill="#3fb950" font-size="11">per-token update: g = sigmoid(w_gate · x)</text>
+        <!-- arrows tokens -> block -->
+        <line x1="50" y1="70" x2="150" y2="104" stroke="#8b949e" marker-end="url(#arr)"/>
+        <line x1="306" y1="70" x2="430" y2="104" stroke="#8b949e" marker-end="url(#arr)"/>
+        <!-- memory bank -->
+        <rect x="560" y="104" width="256" height="110" rx="10" fill="#161b22" stroke="#3fb950"/>
+        <text x="576" y="128" fill="#3fb950" font-weight="bold">episodic memory bank</text>
+        <g fill="#0d1117" stroke="#30363d">
+          <rect x="580" y="142" width="100" height="26" rx="5"/>
+          <rect x="692" y="142" width="100" height="26" rx="5"/>
+          <rect x="580" y="176" width="100" height="26" rx="5"/>
+          <rect x="692" y="176" width="100" height="26" rx="5"/>
+        </g>
+        <text x="592" y="160" fill="#8b949e">slot k1</text><text x="704" y="160" fill="#8b949e">slot k2</text>
+        <text x="592" y="194" fill="#8b949e">slot k3</text><text x="704" y="194" fill="#8b949e">slot k4</text>
+        <text x="576" y="230" fill="#8b949e" font-size="11">keys on the Poincaré ball · values Euclidean</text>
+        <!-- read/write arrows -->
+        <line x1="480" y1="157" x2="556" y2="157" stroke="#8b949e" marker-end="url(#arr)"/>
+        <text x="492" y="150" fill="#8b949e" font-size="11">read</text>
+        <line x1="556" y1="190" x2="480" y2="190" stroke="#8b949e" marker-end="url(#arr)"/>
+        <text x="492" y="208" fill="#8b949e" font-size="11">write</text>
+        <!-- out -->
+        <line x1="300" y1="214" x2="300" y2="252" stroke="#8b949e" marker-end="url(#arr)"/>
+        <rect x="240" y="256" width="120" height="28" rx="6" fill="#161b22" stroke="#30363d"/>
+        <text x="272" y="274" fill="#e6edf3">next token</text>
+      </svg>
+      <div class="cap">One pass per token: state carries forward, the memory bank is read and written every step, and a learned gate decides how much retrieved memory blends into the token stream.</div>
+    </div>
+    <ul class="props">
+      <li><b>Linear cost, not quadratic.</b> No attention map: the cost of a step does not grow with context length.</li>
+      <li><b>Episodic memory.</b> Fixed-capacity (key, value) slots written during the forward pass: round-robin overwrite, exact full-scan soft read. Not an ANN index.</li>
+      <li><b>Plasticity.</b> Part of the weights updates every token while the model runs, so the model changes as it reads.</li>
+      <li><b>Checkable gradients.</b> A scalar reference path every batched kernel is differentiated against, verified to about 3e-8.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <h2>Measured, on the same corpus, at matched parameters</h2>
+    <table>
+      <tr><th></th><th>PSSA</th><th>Transformer</th></tr>
+      <tr><td>Training cross-entropy</td><td class="num"><b>3.98</b></td><td class="num">4.43</td></tr>
+      <tr><td>Held-out cross-entropy</td><td class="num"><b>3.997</b></td><td class="num">4.429</td></tr>
+      <tr><td>Held-out perplexity</td><td class="num"><b>54.4</b></td><td class="num">83.8</td></tr>
+      <tr><td>Generation speed, same CPU</td><td class="num"><b>~12×</b></td><td class="num">1×</td></tr>
+    </table>
+    <div class="grid">
+      <div class="card"><div class="big">1.54M</div><div class="lbl">parameters, trained from scratch in Rust</div></div>
+      <div class="card"><div class="big">512</div><div class="lbl">episodic memory slots, hyperbolic keys</div></div>
+      <div class="card"><div class="big">0</div><div class="lbl">ML frameworks underneath: raw Rust linear algebra</div></div>
+    </div>
+    <div class="note"><b>What this does not prove:</b> these numbers come from one corpus and one training seed, measured by the author, at 1.5M-parameter scale. No third-party replication yet. A larger run is in progress. Full provenance: the README's comparison section, <a href="https://github.com/Sparticle62ops/pssa">github.com/Sparticle62ops/pssa</a>.</div>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap">
+    <h2>Get it</h2>
+    <p class="mut">Source, training scripts, and the full README with benchmark tables live in the repository. Checkpoints are on Hugging Face.</p>
+    <ul class="props">
+      <li><a href="https://github.com/Sparticle62ops/pssa">github.com/Sparticle62ops/pssa</a> — source and README</li>
+      <li><a href="https://huggingface.co/sparticle62/pssa">huggingface.co/sparticle62/pssa</a> — checkpoints</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>built by <a href="https://github.com/sparticle62ops">sparticle62ops</a></span>
+    <span><a href="https://discord.gg/9sqfKeqWYF">PSlabs Discord</a></span>
+  </div>
+</footer>
+</body>
+</html>
